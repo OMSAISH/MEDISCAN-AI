@@ -1,0 +1,30 @@
+{
+  "model_type": "RandomForestClassifier",
+  "feature_names": [
+    "clinical_trial_count",
+    "phase1_count",
+    "phase2_count",
+    "phase3_count",
+    "phase4_count",
+    "completed_trials_count",
+    "total_enrollment_log",
+    "literature_count",
+    "meta_analysis_count",
+    "rct_count",
+    "observational_count",
+    "patent_count",
+    "granted_patent_count",
+    "market_signal_count",
+    "is_fda_approved_compound"
+  ],
+  "n_samples": 800,
+  "test_metrics": {
+    "auc_roc": 0.7475,
+    "f1_score": 0.922,
+    "precision": 0.8553,
+    "recall": 1.0
+  },
+  "trained_at": "2026-09-19T20:45:50.486541+00:00",
+  "model_version": "1.0.0",
+  "disclaimer": "Trained on documented synthetic benchmark repurposing dataset for research support."
+}
