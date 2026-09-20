@@ -213,6 +213,7 @@ All performance benchmarks completed with ZERO errors.
 ## 8. Documentation Directory
 
 - [Architecture Specification](docs/architecture.md): Deep-dive into agent design, data flow, and async task orchestration.
+- [Architectural & Workflow Figures (Figures 1–7)](docs/figures.md): Complete visual specifications for architecture, multi-agent workflows, scoring integration, and data flows.
 - [REST API Reference](docs/api.md): Complete endpoint documentation with request/response schemas.
 - [Scoring & Research Methodology](docs/methodology.md): Mathematical formulations, phase weights, and ML features.
 - [Security Architecture](docs/security.md): Threat modeling, bcrypt hashing, RBAC, and audit logging.
