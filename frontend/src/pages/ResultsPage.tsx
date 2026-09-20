@@ -29,7 +29,17 @@ export const ResultsPage: React.FC<ResultsPageProps> = ({ queryId, onNavigate })
 
   useEffect(() => {
     api.research.get(queryId)
-      .then((res) => setDetail(res))
+      .then((res) => {
+        setDetail(res);
+        const params = new URLSearchParams(window.location.search);
+        const modal = params.get('modal');
+        if (modal === 'evidence' && res.indications?.length > 0) {
+          setSelectedIndicationId(res.indications[0].id);
+          setSelectedIndicationName(res.indications[0].indication_name);
+        } else if (modal === 'report') {
+          setShowReportModal(true);
+        }
+      })
       .catch((err) => setError(err.message || 'Failed to load research results.'))
       .finally(() => setLoading(false));
   }, [queryId]);

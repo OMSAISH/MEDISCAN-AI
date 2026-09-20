@@ -17,9 +17,23 @@ import { AdminPage } from './pages/AdminPage';
 
 const AppContent: React.FC = () => {
   const { user, loading } = useAuth();
-  const [currentView, setCurrentView] = useState<string>('landing');
-  const [activeQueryId, setActiveQueryId] = useState<string>('');
-  const [initialDrug, setInitialDrug] = useState<string>('');
+
+  const getInitialState = () => {
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = params.get('view') || window.location.hash.replace('#', '');
+    const idParam = params.get('id') || '05272b5e-9e1e-468f-91a4-63801f8f4565';
+    const drugParam = params.get('drug') || 'Metformin';
+    return {
+      view: viewParam || 'landing',
+      id: idParam,
+      drug: drugParam,
+    };
+  };
+
+  const initialState = getInitialState();
+  const [currentView, setCurrentView] = useState<string>(initialState.view);
+  const [activeQueryId, setActiveQueryId] = useState<string>(initialState.id);
+  const [initialDrug, setInitialDrug] = useState<string>(initialState.drug);
 
   const navigate = (view: string, id?: string) => {
     if (view.startsWith('new-analysis:')) {
@@ -37,9 +51,10 @@ const AppContent: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // If initial load finishes and user is logged in on landing, show dashboard
+  // If initial load finishes and user is logged in on landing (and no explicit view param), show dashboard
   React.useEffect(() => {
-    if (!loading && user && currentView === 'landing') {
+    const params = new URLSearchParams(window.location.search);
+    if (!params.get('view') && !loading && user && currentView === 'landing') {
       setCurrentView('dashboard');
     }
   }, [loading, user]);

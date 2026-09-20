@@ -18,6 +18,14 @@ const API_BASE = (import.meta as any).env?.VITE_API_BASE ||
 
 class ApiClient {
   private getToken(): string | null {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryToken = urlParams.get('token');
+      if (queryToken) {
+        localStorage.setItem('mediscan_token', queryToken);
+        return queryToken;
+      }
+    }
     return localStorage.getItem('mediscan_token');
   }
 

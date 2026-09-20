@@ -19,6 +19,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   useEffect(() => {
     const checkAuth = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryToken = urlParams.get('token');
+      if (queryToken) {
+        localStorage.setItem('mediscan_token', queryToken);
+      }
       const token = localStorage.getItem('mediscan_token');
       if (token) {
         try {

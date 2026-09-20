@@ -350,7 +350,24 @@ flowchart TD
 
 ---
 
-## Figure 7 – System Data Flow
+## Figure 7 – User Workflow and System Interface Flow
+
+Step-by-step process of how a researcher uses MediScan AI for drug repurposing analysis, featuring real interface screenshots from the live application.
+
+![Figure 7 – User Workflow and System Interface Flow](figure7_user_workflow.png)
+
+### Workflow Breakdown:
+1. **Login / Register**: Researcher signs in or registers an account with JWT-based session security.
+2. **Search for a Drug**: Enters compound name (e.g., Metformin) with automated PubChem CID normalization and validation.
+3. **AI Agents Processing**: Master Agent orchestrates 4 domain agents (Clinical, Literature, Patent, Market) with real-time SSE progress streaming.
+4. **View Results**: Platform presents ranked candidate indications with multi-dimensional composite evidence scores.
+5. **Explore Detailed Evidence**: Itemized evidence modal surfaces primary trial endpoints, PMIDs, and method-of-use patent filings.
+6. **Generate Research Report**: Researcher compiles publication-grade dossiers across PDF, HTML, JSON, and CSV.
+7. **Save and Track Progress**: Past research runs, metrics, and discovered indications are archived on the interactive dashboard.
+
+---
+
+## Figure 8 – System Data Flow
 
 Shows the flow of information between the user interface, backend services, AI agents, external data sources, database, analysis engine, and reporting module.
 
