@@ -60,30 +60,44 @@ flowchart TD
         Out_CSV["Tabular Indication & Score CSV"]
     end
 
-    %% Connections
-    ClientLayer <-->|REST APIs / Bearer JWT| GatewayLayer
-    ClientLayer <-->|Server-Sent Events (SSE)| SSE_Manager
-    GatewayLayer --> MasterAgent
-    MasterAgent <-->|Normalization| PubChem
-    MasterAgent -->|Parallel Dispatch| ClinicalAgent
-    MasterAgent -->|Parallel Dispatch| LitAgent
-    MasterAgent -->|Parallel Dispatch| PatentAgent
-    MasterAgent -->|Parallel Dispatch| MarketAgent
+    %% Node to Node Connections
+    UI_Search -->| "REST APIs / Bearer JWT" | API_Gateway
+    UI_Dashboard -->| "REST APIs / Bearer JWT" | API_Gateway
+    UI_Live <-->| "Server-Sent Events (SSE)" | SSE_Manager
+    UI_Export -->| "Export Request" | API_Gateway
 
-    ClinicalAgent <-->|Async REST| CT_Gov
-    LitAgent <-->|Async REST| NCBI
-    PatentAgent <-->|Async REST| USPTO
-    MarketAgent <-->|Async REST| OpenFDA
+    API_Gateway --> Auth_RBAC
+    API_Gateway --> Audit_Logger
+    API_Gateway --> MasterAgent
 
-    ClinicalAgent & LitAgent & PatentAgent & MarketAgent --> EvidenceEngine
+    MasterAgent <-->| "Normalization" | PubChem
+    MasterAgent -->| "Parallel Dispatch" | ClinicalAgent
+    MasterAgent -->| "Parallel Dispatch" | LitAgent
+    MasterAgent -->| "Parallel Dispatch" | PatentAgent
+    MasterAgent -->| "Parallel Dispatch" | MarketAgent
+
+    ClinicalAgent <-->| "Async REST" | CT_Gov
+    LitAgent <-->| "Async REST" | NCBI
+    PatentAgent <-->| "Async REST" | USPTO
+    MarketAgent <-->| "Async REST" | OpenFDA
+
+    ClinicalAgent --> EvidenceEngine
+    LitAgent --> EvidenceEngine
+    PatentAgent --> EvidenceEngine
+    MarketAgent --> EvidenceEngine
+
     EvidenceEngine --> ScoringEngine
     ScoringEngine --> ExplainEngine
     ExplainEngine --> ML_Model
-    ML_Model --> GatewayLayer
+    ML_Model --> API_Gateway
 
-    GatewayLayer --> DB
-    GatewayLayer --> FileStore
-    FileStore --> OutputLayer
+    API_Gateway --> DB
+    API_Gateway --> FileStore
+
+    FileStore --> Out_PDF
+    FileStore --> Out_HTML
+    FileStore --> Out_JSON
+    FileStore --> Out_CSV
 ```
 
 ---
@@ -105,39 +119,37 @@ sequenceDiagram
     participant Market as Market Agent
     participant Aggregator as Evidence & Scoring Engine
 
-    Researcher->>UI: Enters compound (e.g., "Metformin") & clicks Start
+    Researcher->>UI: Enters compound (e.g., Metformin) & clicks Start
     UI->>Master: POST /api/v1/research (drug_name, parameters)
     Master->>Master: Validate & normalize compound via PubChem
     Master->>SSE: Emit event: query_started
-    SSE-->>UI: Live update: "Master Agent initialized for Metformin"
+    SSE-->>UI: Live update: Master Agent initialized for Metformin
 
-    rect rgb(240, 249, 255)
-        note over Master,Market: Parallel Asynchronous Execution via asyncio.gather
-        par Clinical Investigation
-            Master->>Clinical: analyze(drug_name, normalized_cid)
-            Clinical->>Clinical: Query ClinicalTrials.gov v2 API
-            Clinical->>SSE: Emit event: agent_progress (Clinical, 50%)
-            SSE-->>UI: Live update: "Found 14 trials (Phase 1-3)"
-            Clinical-->>Master: Return ClinicalEvidencePayload
-        and Literature Investigation
-            Master->>Lit: analyze(drug_name, normalized_cid)
-            Lit->>Lit: Query NCBI PubMed & Europe PMC
-            Lit->>SSE: Emit event: agent_progress (Literature, 60%)
-            SSE-->>UI: Live update: "Identified 28 papers (RCTs, Meta-Analyses)"
-            Lit-->>Master: Return LiteratureEvidencePayload
-        and Patent Landscape
-            Master->>Patent: analyze(drug_name, normalized_cid)
-            Patent->>Patent: Query USPTO / PatentsView
-            Patent->>SSE: Emit event: agent_progress (Patent, 75%)
-            SSE-->>UI: Live update: "Found 6 active method-of-use claims"
-            Patent-->>Master: Return PatentEvidencePayload
-        and Market & Regulatory
-            Master->>Market: analyze(drug_name, normalized_cid)
-            Market->>Market: Query OpenFDA & Orange Book
-            Market->>SSE: Emit event: agent_progress (Market, 90%)
-            SSE-->>UI: Live update: "Analyzed exclusivity & orphan status"
-            Market-->>Master: Return MarketEvidencePayload
-        end
+    note over Master,Market: Parallel Asynchronous Execution via asyncio.gather
+    par Clinical Investigation
+        Master->>Clinical: analyze(drug_name, normalized_cid)
+        Clinical->>Clinical: Query ClinicalTrials.gov v2 API
+        Clinical->>SSE: Emit event: agent_progress (Clinical, 50%)
+        SSE-->>UI: Live update: Found 14 trials (Phase 1-3)
+        Clinical-->>Master: Return ClinicalEvidencePayload
+    and Literature Investigation
+        Master->>Lit: analyze(drug_name, normalized_cid)
+        Lit->>Lit: Query NCBI PubMed & Europe PMC
+        Lit->>SSE: Emit event: agent_progress (Literature, 60%)
+        SSE-->>UI: Live update: Identified 28 papers (RCTs, Meta-Analyses)
+        Lit-->>Master: Return LiteratureEvidencePayload
+    and Patent Landscape
+        Master->>Patent: analyze(drug_name, normalized_cid)
+        Patent->>Patent: Query USPTO / PatentsView
+        Patent->>SSE: Emit event: agent_progress (Patent, 75%)
+        SSE-->>UI: Live update: Found 6 active method-of-use claims
+        Patent-->>Master: Return PatentEvidencePayload
+    and Market & Regulatory
+        Master->>Market: analyze(drug_name, normalized_cid)
+        Market->>Market: Query OpenFDA & Orange Book
+        Market->>SSE: Emit event: agent_progress (Market, 90%)
+        SSE-->>UI: Live update: Analyzed exclusivity & orphan status
+        Market-->>Master: Return MarketEvidencePayload
     end
 
     Master->>Aggregator: Aggregate multi-domain payloads by disease indication
@@ -156,14 +168,14 @@ Shows the step-by-step process starting from drug entry and validation, followed
 
 ```mermaid
 flowchart TD
-    Step1["Step 1: Drug Entry & Validation\n- Researcher inputs compound name or trade name\n- Normalization via PubChem PUG-REST (CID, SMILES, Formula)\n- Extraction of existing approved indications"]
-    --> Step2["Step 2: Research Scoping & Parameterization\n- Select target therapeutic area (optional) or open discovery\n- Configure minimum trial phase (e.g., Phase 2+) and study types"]
-    --> Step3["Step 3: Concurrent Multi-Domain Data Collection\n- ClinicalTrials.gov v2: Interventional & observational studies\n- NCBI PubMed: Meta-analyses, RCTs, cohort, preclinical papers\n- USPTO / PatentsView: Method-of-use claims & expiry dates\n- OpenFDA: Approved labels, exclusivity, orphan designations"]
-    --> Step4["Step 4: Evidence Extraction & Provenance Normalization\n- Fact extraction (enrollment, primary endpoints, completion status)\n- Source provenance anchoring (NCT IDs, PMIDs, Patent numbers)\n- Negative signal tagging (terminated trials, adverse events)"]
-    --> Step5["Step 5: Indication Clustering & Identification\n- Disease entity normalization via MeSH & ICD terms\n- Cross-domain aggregation of all evidence per indication candidate"]
-    --> Step6["Step 6: Transparent Evidence Scoring & ML Probability\n- Calculate Clinical (40%), Patent (30%), Literature (20%), Market (10%)\n- Compute 0-100 Composite Score\n- Extract 15-feature vector and evaluate RandomForestClassifier\n- Assign Confidence Tier (High >=70, Moderate 45-69, Exploratory <45)"]
-    --> Step7["Step 7: Explainability & Limitations Generation\n- Identify key positive driving factors\n- Document negative signals, missing trial phases, and caveats\n- Synthesize grounded narrative summary (zero hallucinations)"]
-    --> Step8["Step 8: Persistence & Interactive Visualization\n- Commit results, indications, and evidence to database\n- Render interactive results cards, score radar, and evidence modal\n- Enable instant export to PDF, HTML, JSON, and CSV"]
+    Step1["Step 1: Drug Entry & Validation<br/>- Researcher inputs compound name or trade name<br/>- Normalization via PubChem PUG-REST (CID, SMILES, Formula)<br/>- Extraction of existing approved indications"]
+    --> Step2["Step 2: Research Scoping & Parameterization<br/>- Select target therapeutic area (optional) or open discovery<br/>- Configure minimum trial phase (e.g., Phase 2+) and study types"]
+    --> Step3["Step 3: Concurrent Multi-Domain Data Collection<br/>- ClinicalTrials.gov v2: Interventional & observational studies<br/>- NCBI PubMed: Meta-analyses, RCTs, cohort, preclinical papers<br/>- USPTO / PatentsView: Method-of-use claims & expiry dates<br/>- OpenFDA: Approved labels, exclusivity, orphan designations"]
+    --> Step4["Step 4: Evidence Extraction & Provenance Normalization<br/>- Fact extraction (enrollment, primary endpoints, completion status)<br/>- Source provenance anchoring (NCT IDs, PMIDs, Patent numbers)<br/>- Negative signal tagging (terminated trials, adverse events)"]
+    --> Step5["Step 5: Indication Clustering & Identification<br/>- Disease entity normalization via MeSH & ICD terms<br/>- Cross-domain aggregation of all evidence per indication candidate"]
+    --> Step6["Step 6: Transparent Evidence Scoring & ML Probability<br/>- Calculate Clinical (40%), Patent (30%), Literature (20%), Market (10%)<br/>- Compute 0-100 Composite Score<br/>- Extract 15-feature vector and evaluate RandomForestClassifier<br/>- Assign Confidence Tier (High >=70, Moderate 45-69, Exploratory <45)"]
+    --> Step7["Step 7: Explainability & Limitations Generation<br/>- Identify key positive driving factors<br/>- Document negative signals, missing trial phases, and caveats<br/>- Synthesize grounded narrative summary (zero hallucinations)"]
+    --> Step8["Step 8: Persistence & Interactive Visualization<br/>- Commit results, indications, and evidence to database<br/>- Render interactive results cards, score radar, and evidence modal<br/>- Enable instant export to PDF, HTML, JSON, and CSV"]
 ```
 
 ---
@@ -175,46 +187,51 @@ Illustrates how information collected from different sources is combined and eva
 ```mermaid
 flowchart TD
     subgraph Inputs["Multi-Domain Evidence Inputs"]
-        In_Clin["Clinical Trials\n- Study Phase (Ph 1-4)\n- Status (Completed / Recruiting)\n- Enrollment Cohort Size\n- Primary Endpoint Definition"]
-        In_Pat["Patent Landscape\n- Method-of-Use Claims\n- Remaining Term to Expiry\n- Multi-Jurisdiction (US/EP/WO)\n- Assignee Types"]
-        In_Lit["Biomedical Literature\n- Study Hierarchy (Meta/RCT/In Vivo)\n- Journal Impact & Recency Decay\n- Mechanistic Confirmation\n- Cohort Scale"]
-        In_Mkt["Market & Regulatory\n- Orphan Drug Designation\n- Unmet Medical Need Level\n- Generic vs Exclusivity Status\n- Class Competition Density"]
+        In_Clin["Clinical Trials<br/>- Study Phase (Ph 1-4)<br/>- Status (Completed / Recruiting)<br/>- Enrollment Cohort Size<br/>- Primary Endpoint Definition"]
+        In_Pat["Patent Landscape<br/>- Method-of-Use Claims<br/>- Remaining Term to Expiry<br/>- Multi-Jurisdiction (US/EP/WO)<br/>- Assignee Types"]
+        In_Lit["Biomedical Literature<br/>- Study Hierarchy (Meta/RCT/In Vivo)<br/>- Journal Impact & Recency Decay<br/>- Mechanistic Confirmation<br/>- Cohort Scale"]
+        In_Mkt["Market & Regulatory<br/>- Orphan Drug Designation<br/>- Unmet Medical Need Level<br/>- Generic vs Exclusivity Status<br/>- Class Competition Density"]
     end
 
     subgraph DomainScores["Domain Scoring Formulations"]
-        S_Clin["Clinical Score (S_clinical)\nWeight: 0.40 (40%)\nScale: 0.0 - 100.0"]
-        S_Pat["Patent Score (S_patent)\nWeight: 0.30 (30%)\nScale: 0.0 - 100.0"]
-        S_Lit["Literature Score (S_literature)\nWeight: 0.20 (20%)\nScale: 0.0 - 100.0"]
-        S_Mkt["Market Score (S_market)\nWeight: 0.10 (10%)\nScale: 0.0 - 100.0"]
+        S_Clin["Clinical Score (S_clinical)<br/>Weight: 0.40 (40%)<br/>Scale: 0.0 - 100.0"]
+        S_Pat["Patent Score (S_patent)<br/>Weight: 0.30 (30%)<br/>Scale: 0.0 - 100.0"]
+        S_Lit["Literature Score (S_literature)<br/>Weight: 0.20 (20%)<br/>Scale: 0.0 - 100.0"]
+        S_Mkt["Market Score (S_market)<br/>Weight: 0.10 (10%)<br/>Scale: 0.0 - 100.0"]
     end
 
-    In_Clin -->|Phase Weights * Status * ln(Enrollment)| S_Clin
-    In_Pat -->|Claim Scope + Term + Jurisdictions| S_Pat
-    In_Lit -->|Study Design Weight * Recency Multiplier| S_Lit
-    In_Mkt -->|Orphan Status + Unmet Need + Exclusivity| S_Mkt
+    In_Clin -->| "Phase Weights * Status * ln(Enrollment)" | S_Clin
+    In_Pat -->| "Claim Scope + Term + Jurisdictions" | S_Pat
+    In_Lit -->| "Study Design Weight * Recency Multiplier" | S_Lit
+    In_Mkt -->| "Orphan Status + Unmet Need + Exclusivity" | S_Mkt
 
     subgraph Aggregation["Composite Scoring Formula"]
-        Formula["S_composite = 0.40 * S_clinical + 0.30 * S_patent + 0.20 * S_literature + 0.10 * S_market\nContinuous Range: 0.0 to 100.0"]
+        Formula["S_composite = 0.40 * S_clinical + 0.30 * S_patent + 0.20 * S_literature + 0.10 * S_market<br/>Continuous Range: 0.0 to 100.0"]
     end
 
-    S_Clin & S_Pat & S_Lit & S_Mkt --> Formula
+    S_Clin --> Formula
+    S_Pat --> Formula
+    S_Lit --> Formula
+    S_Mkt --> Formula
 
-    subgraph Evaluation["Dual Assessment Pipelines"]
-        subgraph Tiers["Deterministic Confidence Tiers"]
-            T_High["HIGH CONFIDENCE (Score >= 70.0)\nPhase 2/3 confirmation + robust literature + active IP"]
-            T_Mod["MODERATE CONFIDENCE (Score 45.0 - 69.9)\nEarly Phase 1 + preclinical in vivo + emerging data"]
-            T_Exp["EXPLORATORY (Score < 45.0)\nIn vitro assays + retrospective associations only"]
-        end
-
-        subgraph ML["Machine Learning Subsystem (/ml)"]
-            ML_Pipe["15-Dimensional Feature Extraction Vector"]
-            --> ML_Model["Calibrated RandomForestClassifier (AUC-ROC ~0.80)"]
-            --> ML_Prob["Predicted Repurposing Probability (0.00 - 1.00)"]
-        end
+    subgraph Tiers["Deterministic Confidence Tiers"]
+        T_High["HIGH CONFIDENCE (Score >= 70.0)<br/>Phase 2/3 confirmation + robust literature + active IP"]
+        T_Mod["MODERATE CONFIDENCE (Score 45.0 - 69.9)<br/>Early Phase 1 + preclinical in vivo + emerging data"]
+        T_Exp["EXPLORATORY (Score < 45.0)<br/>In vitro assays + retrospective associations only"]
     end
 
-    Formula --> Tiers
-    Formula --> ML
+    subgraph MLSubsystem["Machine Learning Subsystem (/ml)"]
+        ML_Pipe["15-Dimensional Feature Extraction Vector"]
+        ML_Model["Calibrated RandomForestClassifier (AUC-ROC ~0.80)"]
+        ML_Prob["Predicted Repurposing Probability (0.00 - 1.00)"]
+        ML_Pipe --> ML_Model
+        ML_Model --> ML_Prob
+    end
+
+    Formula --> T_High
+    Formula --> T_Mod
+    Formula --> T_Exp
+    Formula --> ML_Pipe
 ```
 
 ---
@@ -223,7 +240,7 @@ flowchart TD
 
 Shows the researcher-facing interface where identified therapeutic areas, supporting evidence, scores, explanations, and source information are presented.
 
-```
+```text
 +---------------------------------------------------------------------------------------------------------+
 |  [Pill] MEDISCAN AI   |  Dashboard   [+ New Analysis]   History   Methodology   Admin   |  Dr. Vance (v)|
 +---------------------------------------------------------------------------------------------------------+
@@ -285,28 +302,28 @@ Shows the researcher-facing interface where identified therapeutic areas, suppor
 
 ## Figure 6 – Research Report Generation
 
-Illustrates the process of converting the analyzed evidence and research findings into a structured downloadable report.
+Illustrates the process of converting the analyzed evidence and research findings into a structured downloadable report across four formats.
 
 ```mermaid
 flowchart TD
-    Trigger["Researcher Clicks 'Export Report'\nSelects Format: PDF / HTML / JSON / CSV"]
-    --> Req["Frontend sends POST /api/v1/reports/{query_id}/generate\nHeaders: Authorization: Bearer <JWT>"]
-    --> Dispatcher["Backend Report Dispatcher\n(backend/app/reports/generator.py)"]
+    Trigger["Researcher Clicks 'Export Report'<br/>Selects Format: PDF / HTML / JSON / CSV"]
+    --> Req["Frontend sends POST /api/v1/reports/{query_id}/generate<br/>Headers: Authorization: Bearer JWT"]
+    --> Dispatcher["Backend Report Dispatcher<br/>(backend/app/reports/generator.py)"]
 
     subgraph DataAssembly["Data Assembly & Provenance Aggregation"]
-        Q_Data["Fetch ResearchQuery\n(Drug name, parameters, execution metrics)"]
-        Ind_Data["Fetch DiscoveredIndications\n(Composite & domain scores, ML probability, key findings)"]
-        Ev_Data["Fetch EvidenceItems\n(NCT IDs, PMIDs, Patent numbers, URLs, extracted facts)"]
-        Agent_Data["Fetch AgentRuns\n(Agent latencies, record counts, execution status)"]
+        Q_Data["Fetch ResearchQuery<br/>(Drug name, parameters, execution metrics)"]
+        Ind_Data["Fetch DiscoveredIndications<br/>(Composite & domain scores, ML probability, key findings)"]
+        Ev_Data["Fetch EvidenceItems<br/>(NCT IDs, PMIDs, Patent numbers, URLs, extracted facts)"]
+        Agent_Data["Fetch AgentRuns<br/>(Agent latencies, record counts, execution status)"]
     end
 
     Dispatcher --> DataAssembly
 
     subgraph Builders["Format-Specific Report Builders"]
-        PDF_B["PDF Builder (ReportLab)\n- Cover Page & Metadata\n- Executive Summary & Disclaimers\n- Scoring Breakdown Tables\n- Indication Dossier & Findings\n- Itemized Provenance Reference Table\n- Running Page Numbers & Headers"]
-        HTML_B["HTML Builder (Jinja2)\n- Self-Contained Interactive Document\n- Embedded Responsive CSS\n- Expandable Evidence Tables\n- Clickable Citations & External Links"]
-        JSON_B["JSON Builder (Pydantic v2)\n- Full Schema Serialization\n- Machine-Readable API Contract\n- Complete Raw Data for Downstream Pipelines"]
-        CSV_B["CSV Builder (Python csv)\n- Flat Tabular Matrix\n- Indication, MeSH ID, Scores, Evidence Counts\n- Ready for R, Python, Excel Analysis"]
+        PDF_B["PDF Builder (ReportLab)<br/>- Cover Page & Metadata<br/>- Executive Summary & Disclaimers<br/>- Scoring Breakdown Tables<br/>- Indication Dossier & Findings<br/>- Itemized Provenance Reference Table<br/>- Running Page Numbers & Headers"]
+        HTML_B["HTML Builder (Jinja2)<br/>- Self-Contained Interactive Document<br/>- Embedded Responsive CSS<br/>- Expandable Evidence Tables<br/>- Clickable Citations & External Links"]
+        JSON_B["JSON Builder (Pydantic v2)<br/>- Full Schema Serialization<br/>- Machine-Readable API Contract<br/>- Complete Raw Data for Downstream Pipelines"]
+        CSV_B["CSV Builder (Python csv)<br/>- Flat Tabular Matrix<br/>- Indication, MeSH ID, Scores, Evidence Counts<br/>- Ready for R, Python, Excel Analysis"]
     end
 
     DataAssembly --> PDF_B
@@ -321,7 +338,11 @@ flowchart TD
         ClientDL["Browser Triggers Secure File Download"]
     end
 
-    PDF_B & HTML_B & JSON_B & CSV_B --> SaveDisk
+    PDF_B --> SaveDisk
+    HTML_B --> SaveDisk
+    JSON_B --> SaveDisk
+    CSV_B --> SaveDisk
+
     SaveDisk --> SaveDB
     SaveDB --> Resp
     Resp --> ClientDL
@@ -336,15 +357,15 @@ Shows the flow of information between the user interface, backend services, AI a
 ```mermaid
 flowchart LR
     subgraph UI["User Interface"]
-        Web["React 18 SPA\n(Browser)"]
+        Web["React 18 SPA<br/>(Browser)"]
     end
 
     subgraph Backend["FastAPI Backend Services"]
-        AuthSvc["Auth & RBAC\nService"]
-        NormSvc["Drug Normalizer\n(PubChem)"]
-        Master["Master Agent\nOrchestrator"]
-        SSEHub["EventStream\nManager"]
-        RepSvc["Report\nGenerator"]
+        AuthSvc["Auth & RBAC<br/>Service"]
+        NormSvc["Drug Normalizer<br/>(PubChem)"]
+        Master["Master Agent<br/>Orchestrator"]
+        SSEHub["EventStream<br/>Manager"]
+        RepSvc["Report<br/>Generator"]
     end
 
     subgraph Agents["Specialized Agents"]
@@ -362,42 +383,51 @@ flowchart LR
     end
 
     subgraph Analytics["Analytics Engines"]
-        ScoreEngine["Scoring Engine\n(0-100 Scale)"]
-        MLEngine["ML Subsystem\n(Random Forest)"]
-        ExplainEngine["Explainability\nEngine"]
+        ScoreEngine["Scoring Engine<br/>(0-100 Scale)"]
+        MLEngine["ML Subsystem<br/>(Random Forest)"]
+        ExplainEngine["Explainability<br/>Engine"]
     end
 
     subgraph Persistence["Storage Layer"]
-        SQLDB[("PostgreSQL / SQLite\nDatabase")]
-        ReportFiles[("File Storage\n/data/reports")]
+        SQLDB[("PostgreSQL / SQLite<br/>Database")]
+        ReportFiles[("File Storage<br/>/data/reports")]
     end
 
     %% Data Flow Steps
-    Web -->|1. User Credentials| AuthSvc
-    AuthSvc -->|2. Issue JWT| Web
-    Web -->|3. Submit Compound| Master
-    Master -->|4. Normalize Name| NormSvc
-    Master -->|5. Record Query (RUNNING)| SQLDB
-    Web <-->|6. Connect SSE Stream| SSEHub
-    Master -->|7. Concurrent Dispatch| CA & LA & PA & MA
-    Master -.->|8. Live Progress Events| SSEHub
+    Web -->| "1. User Credentials" | AuthSvc
+    AuthSvc -->| "2. Issue JWT" | Web
+    Web -->| "3. Submit Compound" | Master
+    Master -->| "4. Normalize Name" | NormSvc
+    Master -->| "5. Record Query (RUNNING)" | SQLDB
+    Web <-->| "6. Connect SSE Stream" | SSEHub
 
-    CA <-->|9a. Async HTTP| Ext_CT
-    LA <-->|9b. Async HTTP| Ext_PM
-    PA <-->|9c. Async HTTP| Ext_PV
-    MA <-->|9d. Async HTTP| Ext_FDA
+    Master -->| "7a. Dispatch" | CA
+    Master -->| "7b. Dispatch" | LA
+    Master -->| "7c. Dispatch" | PA
+    Master -->| "7d. Dispatch" | MA
 
-    CA & LA & PA & MA -->|10. Raw Evidence Payloads| ScoreEngine
-    ScoreEngine -->|11. Domain & Composite Scores| MLEngine
-    MLEngine -->|12. Empirical Probabilities| ExplainEngine
-    ExplainEngine -->|13. Synthesized Findings| SQLDB
+    Master -.->| "8. Live Progress Events" | SSEHub
 
-    SQLDB -.->|14. Query (COMPLETED)| SSEHub
-    Web -->|15. Fetch Full Results| Master
-    Master -->|16. Read Results| SQLDB
+    CA <-->| "9a. Async HTTP" | Ext_CT
+    LA <-->| "9b. Async HTTP" | Ext_PM
+    PA <-->| "9c. Async HTTP" | Ext_PV
+    MA <-->| "9d. Async HTTP" | Ext_FDA
 
-    Web -->|17. Request Export| RepSvc
-    RepSvc -->|18. Fetch Query & Evidence| SQLDB
-    RepSvc -->|19. Generate & Write File| ReportFiles
-    RepSvc -->|20. Download Stream| Web
+    CA -->| "10a. Raw Evidence" | ScoreEngine
+    LA -->| "10b. Raw Evidence" | ScoreEngine
+    PA -->| "10c. Raw Evidence" | ScoreEngine
+    MA -->| "10d. Raw Evidence" | ScoreEngine
+
+    ScoreEngine -->| "11. Domain & Composite Scores" | MLEngine
+    MLEngine -->| "12. Empirical Probabilities" | ExplainEngine
+    ExplainEngine -->| "13. Synthesized Findings" | SQLDB
+
+    SQLDB -.->| "14. Query (COMPLETED)" | SSEHub
+    Web -->| "15. Fetch Full Results" | Master
+    Master -->| "16. Read Results" | SQLDB
+
+    Web -->| "17. Request Export" | RepSvc
+    RepSvc -->| "18. Fetch Query & Evidence" | SQLDB
+    RepSvc -->| "19. Generate & Write File" | ReportFiles
+    RepSvc -->| "20. Download Stream" | Web
 ```
