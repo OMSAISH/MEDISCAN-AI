@@ -5,7 +5,7 @@ from pydantic import Field
 
 class Settings(BaseSettings):
     # App Settings
-    APP_NAME: str = "MediScan AI"
+    APP_NAME: str = "MediScan AI: Intelligent Drug Repurposing Research Platform"
     APP_VERSION: str = "1.0.0"
     ENVIRONMENT: str = "development"
     DEBUG: bool = True

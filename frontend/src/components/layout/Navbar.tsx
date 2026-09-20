@@ -27,7 +27,7 @@ export const Navbar: React.FC<NavbarProps> = ({ currentView, onNavigate }) => {
                 MEDISCAN <span className="text-teal-400">AI</span>
               </span>
               <span className="hidden sm:block text-[10px] text-slate-400 uppercase tracking-widest -mt-1 font-medium">
-                Research Intelligence
+                Drug Repurposing Platform
               </span>
             </div>
           </div>

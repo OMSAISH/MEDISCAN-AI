@@ -1,7 +1,6 @@
-# MEDISCAN AI
+# MediScan AI: Intelligent Drug Repurposing Research Platform
 
-> **AI-Powered Drug Repurposing Research Intelligence**  
-> *Accelerating therapeutic discovery through evidence-based, multi-agent computational synthesis.*
+> **Accelerating therapeutic discovery through evidence-based, multi-agent computational synthesis.**
 
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.110+-009688.svg)](https://fastapi.tiangolo.com/)

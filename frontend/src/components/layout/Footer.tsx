@@ -12,7 +12,7 @@ export const Footer: React.FC<{ onNavigate?: (view: string) => void }> = ({ onNa
               <span>MEDISCAN AI</span>
             </div>
             <p className="text-slate-400 leading-relaxed text-xs">
-              AI-Powered Evidence Synthesis & Multi-Domain Drug Repurposing Research Intelligence.
+              Intelligent Drug Repurposing Research Platform.
             </p>
           </div>
 
